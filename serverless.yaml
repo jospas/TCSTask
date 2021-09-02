@@ -1,0 +1,74 @@
+service: tcs-task
+
+provider:
+  name: aws
+  region: ${opt:region, 'ap-southeast-2'}
+  runtime: nodejs12.x
+  endpointType: REGIONAL
+  stage: ${opt:stage, 'dev'}
+  logRetentionInDays: 60
+  apiGateway:
+    shouldStartNameWithService: true
+  lambdaHashingVersion: 20201221
+
+package:
+  individually: true
+  excludeDevDependencies: true
+
+functions:
+
+  showipaddress:
+    handler: lambda/ShowIPAddress.handler
+    name: '${self:provider.stage}-${self:service}-getlastchange'
+    description: 'Shows the user IP address'
+    role: !GetAtt LambdaRole.Arn
+    package:
+      patterns:
+        - '!*/**'
+        - '!*'
+        - 'lambda/ShowIPAddress.js'
+    memorySize: 128
+    timeout: 29
+    environment:
+      REGION: '${self:provider.region}'
+      STAGE: '${self:provider.stage}'
+    events:
+      - http:
+          path: tcstask/ipaddress
+          method: get
+          cors: true
+
+resources:
+  Description: 'TCS task'
+  Resources:
+    LambdaRole:
+      Type: 'AWS::IAM::Role'
+      Properties:
+        RoleName: '${self:provider.stage}-${self:service}-${self:provider.region}-tcstaskrole'
+        AssumeRolePolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+            - Effect: 'Allow'
+              Principal:
+                Service:
+                  - 'lambda.amazonaws.com'
+              Action:
+                - 'sts:AssumeRole'
+        ManagedPolicyArns:
+          - !Ref LambdaPolicy
+
+    LambdaPolicy:
+      Type: 'AWS::IAM::ManagedPolicy'
+      Properties:
+        ManagedPolicyName: '${self:provider.stage}-${self:service}-${self:provider.region}-tcstaskpolicy'
+        Description: 'Managed policy for lambda execution'
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Action:
+                - logs:CreateLogGroup
+                - logs:CreateLogStream
+                - logs:PutLogEvents
+              Resource:
+                - '*'
